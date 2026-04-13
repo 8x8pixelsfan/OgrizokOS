@@ -18,8 +18,21 @@ void strcat(char* a, const char* b){
 		int len = strlen(a);
         a[len] = *b;
         a[len + 1] = '\0';
-        *b++;
+        //*b++;
 	}
+}
+int split(char* str, char sep, char* parts[], int max_parts){
+	int count = 0;
+	while (*str && count < max_parts){
+		parts[count++] = str;
+		while (*str && *str != sep)
+			str++;
+		if (*str == sep){
+			*str = '\0';
+			str++;
+		}
+	}
+	return count;
 }
 void strcpy(char* dst, const char* src){
 	while (*src){

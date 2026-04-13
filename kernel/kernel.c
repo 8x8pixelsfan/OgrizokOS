@@ -1,3 +1,11 @@
+__attribute__((section(".multiboot")))
+__attribute__((used))
+unsigned int multiboot_header[] = {
+	0x1BADB002,
+	0x0,
+	-(0x1BADB002)
+};
+
 #include <stddef.h>
 
 typedef unsigned short uint16_t;
@@ -36,15 +44,10 @@ typedef struct {
 	int texts_count;
 } Window;
 
-Window w = {
-	.x = 10,
-	.y = 5,
-	.w = 30,
-	.h = 10,
-	.texts = {},
-	.title = "Test",
-	.texts_count = 0
-};
+Window windows[10];
+windows_count = 0;
+active_window = -1;
+
 Window SOD = {
 	.x = 25,
 	.y = 8,
@@ -66,6 +69,14 @@ Window SOD = {
 	.texts_count = 0
 };
 
+void create_window(int w, int h, const char* title){
+	Window* win = &windows[windows_count++];
+	win->x = rand_range(0, VGA_WIDTH-w);
+	win->y = rand_range(0, VGA_HEIGH-h);
+	win->h = h;
+	win->w = w;
+	strcpy(win->title, title);
+}
 void draw_window(Window* win){
 	int x = win->x;
 	int y = win->y;
@@ -99,6 +110,13 @@ void draw_window(Window* win){
 	}
 	//print_cords("Cool looking window", 0x0F, x + 3, y + 2);
 }
+
+void render_windows(){
+	for (int i = 0; i < windows_count; i++){
+		draw_window(&windows[i]);
+	}
+}
+
 void add_text_wdgt(int x, int y, const char* str, Window* win){
 	TextWidget* t = &win->texts[win->texts_count++];
 	t->x = x;
@@ -111,17 +129,57 @@ void drawbar() {
         putc_cords('=', 0x0A, x, 0);
     }
 }
+//'apps'
+typedef void (*AppFunc)();
+
+typedef struct {
+	const char* name;
+	AppFunc func;
+} App;
+App apps[10];
+int apps_count = 0;
+
+void register_app(const char* name, AppFunc func){
+	if (apps_count >= 10)
+		return;
+	apps[apps_count].name = name;
+	apps[apps_count].func = func;
+	apps_count++;
+}
+App* find_app(const char* name){
+	for (int i = 0; i < apps_count; i++){
+		if (cmpstr(apps[i].name, name))
+			return &apps[i];
+	}
+	return 0;
+}
+void run_app(const char* name){
+	App* app = find_app(name);
+	if (!app){
+		print("App not found\n", 0x0C);
+		return;
+	}
+	app->func();
+}
+void app_hello_world(){
+	print("hello world!\n", 0x0F);
+}
+void app_fancy_hello_world(){
+	create_window(25,5,"Hello World");
+	add_text_wdgt(5,2,"Hello world!",&windows[windows_count-1]);
+}
 
 void kernel_main() {
-	add_text_wdgt(2,3,"Cool looking window",&w);
+	register_app("hello-world", app_hello_world);
+	register_app("fancy-hello-world", app_fancy_hello_world);
+	//add_text_wdgt(2,3,"Cool looking window",&w);
 	add_text_wdgt(2,3,"OS is ran into fatal error.",&SOD);
 	add_text_wdgt(2,4,"Reboot manualy, halting...",&SOD);
     clr();
     //drawbar();
     //draw_window(&w);
     return_cur();
-    print("ogrizokOS v0.no", 0x0F);
-    nl();
+    print("OgrizokOS v0.no\nI`m not resposible for anything\n", 0x0F);
 	printc('>', 0x0B);
     while (1) {
     	int len = strlen(input);
@@ -132,24 +190,35 @@ void kernel_main() {
                 	input[len-1] = '\0';
                 bck();}
             if (kb == '\n'){
-         		nl();
-         		if (cmpstr(input,"help")){
-         			print("no help\n", 0x0A);}
-         		else if (cmpstr(input,"about")){
-         			print("ogrizok cmd v0.no\n", 0x0A);}
-         		else if (cmpstr(input,"clear")){
+         		//nl();
+         		clr();
+         		char* input_parts[5];
+         		int input_parts_count = split(input, ' ', input_parts, 2);
+         		if (cmpstr(input_parts[0],"help")){
+         			print("help - help\nabout - about os\nclear - clear screen\nwin <title> - open new window\nclose - close window\nlsapps - list of all apps\nrun <app> - run app\npanic - make os panic and halt\n", 0x0A);}
+         		else if (cmpstr(input_parts[0],"about")){
+         			print("OgrizokOS v0.no\nI`m not resposible for anything\n", 0x0A);}
+         		else if (cmpstr(input_parts[0],"clear")){
          			clr();}
-         		else if (cmpstr(input,"win")){
-         			int wx = rand_range(0, 80-30);
-         			int wy = rand_range(0, 25-10);
-         			w.x = wx;
-         			w.y = wy;
-         			draw_window(&w);}
-         		else if (cmpstr(input,"panic")){
+         		else if (cmpstr(input_parts[0],"win"))
+         			create_window(30,9,input_parts[1]);
+         		else if (cmpstr(input_parts[0],"close"))
+         			windows_count--;
+         		else if (cmpstr(input_parts[0],"lsapps")){
+         			print("list of apps:\n", 0x0A);
+         			for (int i = 0; i < apps_count; i++){
+         				print(apps[i].name, 0x0F);
+         				nl();
+         			}
+         		}
+         		else if (cmpstr(input_parts[0],"run"))
+         			run_app(input_parts[1]);
+         		else if (cmpstr(input_parts[0],"panic")){
          			print("Aaaaaa! Halting! Now!\n", 0x0A);
          			panic = 1;}
          		else
          			print("unknown\n", 0x0C);
+         		render_windows();
          		//nl();
          		input[0] = '\0';
             	printc('>', 0x0B);

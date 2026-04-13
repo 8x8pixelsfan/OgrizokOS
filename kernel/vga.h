@@ -6,6 +6,11 @@ uint16_t cursor = 0;
 uint16_t cursorx = 0;
 uint16_t cursory = 0;
 
+void nl(){
+	cursorx = 0;
+	cursory++;
+}
+
 void putc(char c, uint8_t color) {
     vga[cursor++] = (uint16_t)c | (uint16_t)color << 8;
 }
@@ -33,10 +38,6 @@ void print_cords(const char* s, uint8_t color, size_t x, size_t y){
 	}
 	cursorx = oldx;
 	cursory = oldy;
-}
-void nl(){
-	cursorx = 0;
-	cursory++;
 }
 
 void putc_cords(char c, uint8_t color, size_t x, size_t y){
