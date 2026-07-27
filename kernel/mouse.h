@@ -1,6 +1,7 @@
 uint8_t mouse_packets[3];
 int mouse_cycle = 0;
 int mouse_left;
+int mouse_left_press;
 int mousex = 40;
 int mousey = 12;
 char last_sym;
@@ -52,6 +53,8 @@ void mouse_handler(){
 		int dy = (int8_t)mouse_packets[2];
 		putc_cords(last_sym, last_col, mousex, mousey);
 		if (button & 1) {
+			if (mouse_left == 0) mouse_left_press = 1;
+			else mouse_left_press = 0;
 			mouse_left = 1;
 		}
 		else {

@@ -2,8 +2,8 @@ AS = nasm
 CC = gcc
 LD = ld
 
-CFLAGS = -ffreestanding -O2 -Wall -Wextra
-LDFLAGS = -T linker.ld -nostdlib
+CFLAGS = -m32 -g -O0 -ffreestanding -fno-stack-protector -fno-pie -no-pie -Wall -Wextra
+LDFLAGS = -m elf_i386 -T linker.ld -nostdlib
 
 all: iso
 
@@ -16,10 +16,10 @@ iso: kernel.bin
 	mkdir -p iso/boot/grub
 	cp kernel.bin iso/boot/
 	cp grub.cfg iso/boot/grub/
-	grub-mkrescue -o ogrizok.iso iso
+	grub-mkrescue -o ogrizokOS.iso iso
 
 run: iso
-	qemu-system-i386 -cdrom ogrizok.iso
+	qemu-system-i386 -cdrom ogrizokOS.iso -no-reboot -d int
 
 clean:
-	rm -rf *.o *.bin iso ogrizok.iso
+	rm -rf *.o *.bin iso ogrizokOS.iso

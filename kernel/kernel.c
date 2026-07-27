@@ -14,8 +14,8 @@ typedef unsigned char uint8_t;
 typedef signed char int8_t;
 
 #include "vga.h"
-#include "keyboard_scan_code.h"
 #include "strutils.h"
+#include "keyboard_scan_code.h"
 #include "mouse.h"
 
 char input[100];
@@ -48,8 +48,8 @@ typedef struct {
 } Window;
 
 Window windows[10];
-windows_count = 0;
-active_window = -1;
+int windows_count = 0;
+int active_window = -1;
 Window* dragging = 0;
 int drag_offset_x;
 int drag_offset_y;
@@ -140,7 +140,10 @@ void bring_window_to_front(int index){
 	}
 	windows[windows_count - 1] = temp;
 }
-
+void render_input(){
+	putc_cords('>', 0x0B, 0, 0);
+	print_cords_local(input, 0x0F, 1, 0);
+}
 void render_windows(){
 	for (int i = 0; i < windows_count; i++){
 		draw_window(&windows[i]);
@@ -206,10 +209,10 @@ void run_app(int argc, char** argv){
 	}
 	app->func(argc, argv);
 }
-void app_hello_world(){
+void app_hello_world(int argc, char** argv){
 	print("hello world!\n", 0x0F);
 }
-void app_fancy_hello_world(){
+void app_fancy_hello_world(int argc, char** argv){
 	create_window(25,5,"Hello World");
 	add_text_wdgt(5,2,"Hello world!",&windows[windows_count-1]);
 }
@@ -220,7 +223,7 @@ void app_echo(int argc, char** argv){
 	}
 	print("\n",0x0F);
 }
-void app_hello_name(){
+void app_hello_name(int argc, char** argv){
 	print("Hello! What is your name?\nenter your name:", 0x0F);
 	char inpt[100];
 	kb_input(inpt);
@@ -228,6 +231,14 @@ void app_hello_name(){
 	print(inpt, 0x0F);
 	print(", nice to meet you!\n", 0x0F);
                 
+}
+//important shi
+void* memcpy(void* dest, const void* src, unsigned int n){
+	unsigned char* d = dest;
+	const unsigned char* s = src;
+	while (n--)
+		*d++ = *s++;
+	return dest;
 }
 void kernel_main() {
 	windows[0] = windows[0];
@@ -268,8 +279,9 @@ void kernel_main() {
     		dragging->x = mousex - drag_offset_x;
     		dragging->y = mousey - drag_offset_y;
     		render_windows();
+			render_input();
     	}
-    	if (mouse_left) {
+    	if (mouse_left_press && !dragging) {
     		Window* w = get_window_at(mousex, mousey);
     		if (w) {
     			//erease_windows();
