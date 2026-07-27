@@ -12,7 +12,7 @@ void nl(){
 }
 
 void putc(char c, uint8_t color) {
-    vga[cursor++] = (uint16_t)c | (uint16_t)color << 8;
+    vga[cursory * VGA_WIDTH + cursorx] = (uint16_t)c | (uint16_t)color << 8;
 }
 
 void printc(char c, uint8_t color) {
@@ -39,7 +39,19 @@ void print_cords(const char* s, uint8_t color, size_t x, size_t y){
 	cursorx = oldx;
 	cursory = oldy;
 }
-
+void print_cords_local(const char* s, uint8_t color, size_t x, size_t y){
+	cursorx = x;
+	cursory = y;
+	while (*s) {
+		if (*s != '\n')
+    		putc(*s++, color);
+    	cursorx += 1;
+    	if (cursorx > 80 || *s == '\n'){
+    		cursorx = x;
+    		cursory++;
+    	}
+	}
+}
 void putc_cords(char c, uint8_t color, size_t x, size_t y){
     size_t index = y * VGA_WIDTH + x;
     vga[index] = (uint16_t)c | (uint16_t)color << 8;
@@ -73,4 +85,12 @@ void clr() {
     cursor = 0;
     cursorx = 0;
     cursory = 0;
+}
+char get_char(size_t x,size_t y){
+	volatile uint8_t* vga = (uint8_t*)0xB8000;
+	return vga[(y * VGA_WIDTH + x) * 2];
+}
+char get_color(size_t x,size_t y){
+	volatile uint8_t* vga = (uint8_t*)0xB8000;
+	return vga[(y * VGA_WIDTH + x) * 2 + 1];
 }

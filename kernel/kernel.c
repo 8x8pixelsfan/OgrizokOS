@@ -8,12 +8,15 @@ unsigned int multiboot_header[] = {
 
 #include <stddef.h>
 
+typedef unsigned long uint32_t;
 typedef unsigned short uint16_t;
 typedef unsigned char uint8_t;
+typedef signed char int8_t;
 
 #include "vga.h"
 #include "keyboard_scan_code.h"
 #include "strutils.h"
+#include "mouse.h"
 
 char input[100];
 static unsigned int seed = 123456789;
@@ -40,13 +43,16 @@ typedef struct {
 	int w;
 	int h;
 	TextWidget texts[10];
-	const char title[100];
+	char title[100];
 	int texts_count;
 } Window;
 
 Window windows[10];
 windows_count = 0;
 active_window = -1;
+Window* dragging = 0;
+int drag_offset_x;
+int drag_offset_y;
 
 Window SOD = {
 	.x = 25,
@@ -111,9 +117,46 @@ void draw_window(Window* win){
 	//print_cords("Cool looking window", 0x0F, x + 3, y + 2);
 }
 
+Window* get_window_at(int x, int y) {
+	for (int i = windows_count - 1; i >= 0; i--){
+		Window* w = &windows[i];
+		if (x >= w->x && x < w->x + w->w && y >= w->y && y < w->y + w->h){
+			return w;
+		}
+	}
+	return 0;
+}
+int find_window_index(Window* w) {
+	for (int i = 0; i < windows_count; i++) {
+		if (&windows[i] == w)
+			return i;
+	}
+	return -1;
+}
+void bring_window_to_front(int index){
+	Window temp = windows[index];
+	for (int i = index; i < windows_count - 1; i++){
+		windows[i] = windows[i + 1];
+	}
+	windows[windows_count - 1] = temp;
+}
+
 void render_windows(){
 	for (int i = 0; i < windows_count; i++){
 		draw_window(&windows[i]);
+	}
+}
+void erease_windows(){
+	for (int i = 0; i < windows_count; i++){
+		const int x = windows[i].x;
+		const int y = windows[i].y;
+		const int h = windows[i].h;
+		const int w = windows[i].w;
+		for (int i = x - 1; i < x + w + 1; i++){
+			for (int i2 = y - 1; i < y + h + 1; i2++){
+				putc_cords('a', 0x0F, i, i2);
+			} 
+		}
 	}
 }
 
@@ -130,7 +173,7 @@ void drawbar() {
     }
 }
 //'apps'
-typedef void (*AppFunc)();
+typedef void (*AppFunc)(int argc, char** argv);
 
 typedef struct {
 	const char* name;
@@ -153,13 +196,15 @@ App* find_app(const char* name){
 	}
 	return 0;
 }
-void run_app(const char* name){
-	App* app = find_app(name);
+void run_app(int argc, char** argv){
+	if (argc == 0)
+		return;
+	App* app = find_app(argv[0]);
 	if (!app){
 		print("App not found\n", 0x0C);
 		return;
 	}
-	app->func();
+	app->func(argc, argv);
 }
 void app_hello_world(){
 	print("hello world!\n", 0x0F);
@@ -168,10 +213,38 @@ void app_fancy_hello_world(){
 	create_window(25,5,"Hello World");
 	add_text_wdgt(5,2,"Hello world!",&windows[windows_count-1]);
 }
-
+void app_echo(int argc, char** argv){
+	for (int i = 1; i < argc; i++){
+		print(argv[i], 0x0F);
+		print(" ",0x0F);
+	}
+	print("\n",0x0F);
+}
+void app_hello_name(){
+	print("Hello! What is your name?\nenter your name:", 0x0F);
+	char inpt[100];
+	kb_input(inpt);
+	nl();
+	print(inpt, 0x0F);
+	print(", nice to meet you!\n", 0x0F);
+                
+}
 void kernel_main() {
+	windows[0] = windows[0];
+	//important for graphics
+	inb(0x3DA);
+	outb(0x3C0, 0x30);
+	uint8_t val = inb(0x3C1);
+	outb(0x3C0, val & ~0x08);
+	
+	print("Initing mouse...\n", 0x0F);
+	mouse_init();
+	print("Loading built-in apps...\n", 0x0F);
+	register_app("echo", app_echo);
 	register_app("hello-world", app_hello_world);
 	register_app("fancy-hello-world", app_fancy_hello_world);
+	register_app("hello-name", app_hello_name);
+	print("Doing something useless...\n", 0x0F);
 	//add_text_wdgt(2,3,"Cool looking window",&w);
 	add_text_wdgt(2,3,"OS is ran into fatal error.",&SOD);
 	add_text_wdgt(2,4,"Reboot manualy, halting...",&SOD);
@@ -182,6 +255,36 @@ void kernel_main() {
     print("OgrizokOS v0.no\nI`m not resposible for anything\n", 0x0F);
 	printc('>', 0x0B);
     while (1) {
+    	//mouse
+    	uint8_t mstatus = inb(0x64);
+    	if (mstatus & 1){
+    		if (mstatus & (1 << 5)){
+    			mouse_handler();
+    		}
+    	}
+    	if (dragging) {
+    		//erease_windows();
+    		clr();
+    		dragging->x = mousex - drag_offset_x;
+    		dragging->y = mousey - drag_offset_y;
+    		render_windows();
+    	}
+    	if (mouse_left) {
+    		Window* w = get_window_at(mousex, mousey);
+    		if (w) {
+    			//erease_windows();
+    			drag_offset_x = mousex - w->x;
+    			drag_offset_y = mousey - w->y;
+    			int index = find_window_index(w);
+    			active_window = index;
+    			bring_window_to_front(index);
+    			dragging = &windows[windows_count - 1];
+    			render_windows();
+    		}
+    	}
+    	if (!mouse_left){
+    		dragging = 0;
+    	}
     	int len = strlen(input);
         if (keyboard_has_data()){
             char kb = keyboard_getchar();
@@ -193,7 +296,7 @@ void kernel_main() {
          		//nl();
          		clr();
          		char* input_parts[5];
-         		int input_parts_count = split(input, ' ', input_parts, 2);
+         		int input_parts_count = split(input, ' ', input_parts, 5);
          		if (cmpstr(input_parts[0],"help")){
          			print("help - help\nabout - about os\nclear - clear screen\nwin <title> - open new window\nclose - close window\nlsapps - list of all apps\nrun <app> - run app\npanic - make os panic and halt\n", 0x0A);}
          		else if (cmpstr(input_parts[0],"about")){
@@ -202,8 +305,9 @@ void kernel_main() {
          			clr();}
          		else if (cmpstr(input_parts[0],"win"))
          			create_window(30,9,input_parts[1]);
-         		else if (cmpstr(input_parts[0],"close"))
+         		else if (cmpstr(input_parts[0],"close")){
          			windows_count--;
+         			windows[windows_count].texts_count = 0;}
          		else if (cmpstr(input_parts[0],"lsapps")){
          			print("list of apps:\n", 0x0A);
          			for (int i = 0; i < apps_count; i++){
@@ -212,7 +316,9 @@ void kernel_main() {
          			}
          		}
          		else if (cmpstr(input_parts[0],"run"))
-         			run_app(input_parts[1]);
+         			run_app(input_parts_count - 1, &input_parts[1]);
+         		else if (cmpstr(input_parts[0], "erease"))
+         			erease_windows();
          		else if (cmpstr(input_parts[0],"panic")){
          			print("Aaaaaa! Halting! Now!\n", 0x0A);
          			panic = 1;}
@@ -231,9 +337,11 @@ void kernel_main() {
                 input[len] = kb;
                 input[len + 1] = '\0';
             }
-            if (panic){
-            	draw_window(&SOD);
-    			while (1) __asm__("hlt");} 
+
         }
+        putc_cords('^', last_col, mousex, mousey);
+        if (panic){
+            draw_window(&SOD);
+    		while (1) __asm__("hlt");} 
     }
 }

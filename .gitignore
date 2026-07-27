@@ -1,0 +1,6 @@
+boot.o
+kernel.bin
+kernel.o
+ogrizok.iso
+/iso/boot/kernel.bin
+/iso/boot/grub/grub.cfg

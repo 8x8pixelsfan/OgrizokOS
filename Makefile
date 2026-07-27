@@ -7,7 +7,7 @@ LDFLAGS = -T linker.ld -nostdlib
 
 all: iso
 
-kernel.bin: boot/boot.asm kernel/kernel.c kernel/vga.h kernel/keyboard_scan_code.h kernel/strutils.h
+kernel.bin: boot/boot.asm kernel/kernel.c kernel/vga.h kernel/keyboard_scan_code.h kernel/strutils.h kernel/mouse.h
 	$(AS) -f elf32 boot/boot.asm -o boot.o
 	$(CC) $(CFLAGS) -c kernel/kernel.c -o kernel.o
 	$(LD) $(LDFLAGS) boot.o kernel.o -o kernel.bin
